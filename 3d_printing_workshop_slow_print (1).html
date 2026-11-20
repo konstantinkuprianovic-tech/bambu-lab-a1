@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Моя 3D-мастерская</title>
+<style>
+:root{--ink:#24334b;--blue:#4e9cf5;--pink:#ff7f9f;--yellow:#ffd166;--panel:rgba(255,255,255,.91)}
+*{box-sizing:border-box}body{margin:0;overflow:hidden;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:var(--ink);background:#b9e5ff}
+#scene{position:fixed;inset:0}canvas{display:block}
+.panel{background:var(--panel);border:2px solid rgba(255,255,255,.85);border-radius:20px;box-shadow:0 12px 35px #29466a25;backdrop-filter:blur(12px)}
+#top{position:fixed;top:10px;left:10px;right:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;pointer-events:none}
+#brand{padding:9px 14px;font-weight:900;font-size:clamp(14px,3vw,20px);pointer-events:auto}
+#stats{display:flex;gap:7px;pointer-events:auto}.pill{padding:9px 12px;font-weight:800;font-size:13px}
+#actions{position:fixed;left:10px;top:76px;display:flex;flex-direction:column;gap:8px;max-width:155px}
+button,select{font:inherit}button{border:0;border-radius:13px;padding:10px 13px;font-weight:800;color:#fff;background:linear-gradient(135deg,#58a8ff,#397fe0);box-shadow:0 4px 0 #2864b7;cursor:pointer;touch-action:manipulation}
+button:active{transform:translateY(3px);box-shadow:0 1px 0 #2864b7}button.secondary{background:linear-gradient(135deg,#ff9db2,#f16d8d);box-shadow:0 4px 0 #c84c70}button.gold{background:linear-gradient(135deg,#ffd86c,#f5a623);box-shadow:0 4px 0 #c98717;color:#594018}
+#actions button{font-size:12px;text-align:left}
+#side{position:fixed;right:10px;top:76px;width:min(300px,calc(100vw - 20px));max-height:calc(100vh - 90px);overflow:auto;padding:14px;display:none}
+#side.show{display:block}
+h2{font-size:18px;margin:0 0 10px}h3{font-size:14px;margin:13px 0 7px}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.item{border:2px solid #e6effa;border-radius:13px;padding:9px;background:#fff;text-align:center;font-size:12px;font-weight:800;cursor:pointer}
+.item.active{border-color:#58a8ff;background:#edf6ff}
+.swatches{display:flex;gap:8px;flex-wrap:wrap}.swatch{width:31px;height:31px;border-radius:50%;border:3px solid white;box-shadow:0 0 0 1px #9aabc0;cursor:pointer}
+select{width:100%;padding:10px;border:2px solid #dce8f6;border-radius:11px;background:white;color:var(--ink);font-weight:700}
+#bottom{position:fixed;bottom:10px;left:50%;transform:translateX(-50%);width:min(560px,calc(100vw - 20px));padding:12px;display:none}
+#bottom.show{display:block}
+#progress{height:12px;border-radius:20px;background:#e4edf8;overflow:hidden;margin:8px 0}
+#bar{height:100%;width:0;background:linear-gradient(90deg,#63d6a5,#50a8ff);transition:width .15s}
+#status{font-size:13px;font-weight:800}
+#hint{position:fixed;bottom:12px;left:10px;padding:9px 12px;font-size:11px;max-width:180px}
+#toast{position:fixed;left:50%;top:75px;transform:translateX(-50%);padding:11px 16px;font-weight:800;opacity:0;transition:.25s;pointer-events:none;z-index:5}
+#toast.show{opacity:1;top:84px}
+#intro{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#9edcffdd,#ffe4bddd);z-index:10;padding:20px}
+#introCard{max-width:440px;text-align:center;padding:25px}
+#introCard .emoji{font-size:65px;display:inline-block;animation:boxBounce 1.2s ease-in-out infinite}
+@keyframes boxBounce{0%,100%{transform:translateY(0) rotate(-3deg) scale(1)}50%{transform:translateY(-12px) rotate(3deg) scale(1.08)}}
+#introCard.opening .emoji{animation:boxOpen .8s ease forwards}
+@keyframes boxOpen{0%{transform:scale(1) rotate(0)}45%{transform:scale(1.25) rotate(-12deg)}100%{transform:scale(.1) rotate(25deg);opacity:0}}
+#introCard h1{font-size:clamp(26px,7vw,42px);margin:6px 0}#introCard p{line-height:1.5}
+#introCard button{margin:5px}
+#modal{position:fixed;inset:0;background:#1c345477;display:none;align-items:center;justify-content:center;padding:18px;z-index:8}
+#modal.show{display:flex}#modal .panel{max-width:400px;padding:20px;text-align:center}
+.small{font-size:11px;color:#62748c;line-height:1.4}
+@media(max-width:600px){#actions{top:70px;max-width:125px}#actions button{padding:8px;font-size:11px}#side{top:70px;max-height:58vh}#hint{display:none}#brand{padding:8px 10px}.pill{padding:8px;font-size:11px}}
+</style>
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
+</script>
+</head>
+<body>
+<div id="scene"></div>
+<div id="top"><div id="brand" class="panel">🧸 Моя 3D-мастерская</div><div id="stats"><div class="pill panel">💰 <span id="money">∞</span></div><div class="pill panel">🧵 <span id="spoolName">PLA · Голубой</span></div></div></div>
+<div id="actions">
+<button id="shopBtn">🧵 Магазин пластика</button>
+<button id="modelsBtn">🧩 Выбрать модель</button>
+<button id="sliceBtn">🤖 Bambu AI Slicer</button>
+<button id="printBtn" class="gold">▶ Начать печать</button>
+<button id="shelfBtn" class="secondary">🏆 Мои фигурки</button>
+<button id="roomBtn">🏠 Обзор комнаты</button>
+</div>
+<div id="side" class="panel"></div>
+<div id="bottom" class="panel"><div id="status">Подготовка к печати…</div><div id="progress"><div id="bar"></div></div><div class="small" id="detail">Выбери модель и нажми «Bambu AI Slicer».</div></div>
+<div id="hint" class="panel">🧍 Управляй мастером кнопками или WASD. Комнату можно вращать пальцем.</div>
+<div id="movePad" style="position:fixed;left:12px;bottom:62px;display:grid;grid-template-columns:42px 42px 42px;grid-template-rows:42px 42px;gap:5px;z-index:4">
+<button data-move="forward" style="grid-column:2">▲</button>
+<button data-move="left" style="grid-column:1;grid-row:2">◀</button>
+<button data-move="back" style="grid-column:2;grid-row:2">▼</button>
+<button data-move="right" style="grid-column:3;grid-row:2">▶</button>
+</div>
+<div id="toast" class="panel"></div>
+<div id="intro"><div id="introCard" class="panel"><div class="emoji">📦</div><h1>Твоя 3D-мастерская!</h1><p>Коробка с новым принтером Bambu Lab A1 уже приехала. Ты — хозяин мастерской! Управляй своим мультяшным персонажем и создавай фигурки.</p><button id="startBtn">Открыть коробку!</button></div></div>
+<div id="modal"><div class="panel"><h2 id="modalTitle">Готово!</h2><p id="modalText"></p><button id="modalOk">Отлично!</button></div></div>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const mount=document.querySelector('#scene');
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0xb9e5ff); scene.fog=new THREE.Fog(0xb9e5ff,22,45);
+const camera=new THREE.PerspectiveCamera(45,innerWidth/innerHeight,.1,100);camera.position.set(11,10,15);
+const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.localClippingEnabled=true;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.15;mount.appendChild(renderer.domElement);
+const controls=new OrbitControls(camera,renderer.domElement);controls.target.set(0,2,0);controls.enableDamping=true;controls.dampingFactor=.06;controls.maxPolarAngle=Math.PI*.48;controls.minDistance=7;controls.maxDistance=27;
+scene.add(new THREE.HemisphereLight(0xffffff,0x8aa8c5,2.1));
+const sun=new THREE.DirectionalLight(0xfff3d7,3.0);sun.position.set(-7,13,8);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-18;sun.shadow.camera.right=18;sun.shadow.camera.top=18;sun.shadow.camera.bottom=-18;scene.add(sun);
+const fill=new THREE.PointLight(0x8acbff,65,24);fill.position.set(8,7,-5);scene.add(fill);
+const mat=(color,rough=.75,metal=0)=>new THREE.MeshStandardMaterial({color,roughness:rough,metalness:metal});
+const mats={wall:mat('#fff0dc'),floor:mat('#d9c7a9'),blue:mat('#4c9fe8'),dark:mat('#34465d'),white:mat('#fffdf8'),pink:mat('#ff9bb0'),yellow:mat('#ffd36c'),green:mat('#7ed6a8'),wood:mat('#bd875b'),glass: new THREE.MeshStandardMaterial({color:'#9ed9ff',transparent:true,opacity:.35,roughness:.2})};
+const geo={box:new THREE.BoxGeometry(1,1,1),sphere:new THREE.SphereGeometry(1,24,16),cyl:new THREE.CylinderGeometry(1,1,1,24),torus:new THREE.TorusGeometry(1,.16,10,32)};
+function mesh(g,m,x,y,z,sx=1,sy=1,sz=1,parent=scene){let o=new THREE.Mesh(g,m);o.position.set(x,y,z);o.scale.set(sx,sy,sz);o.castShadow=true;o.receiveShadow=true;parent.add(o);return o}
+function box(w,h,d,m,x,y,z,p=scene){return mesh(geo.box,m,x,y,z,w,h,d,p)}
+function ball(r,m,x,y,z,p=scene){return mesh(geo.sphere,m,x,y,z,r,r,r,p)}
+function roundedBox(w,h,d,m,x,y,z,p=scene){let o=box(w,h,d,m,x,y,z,p);o.geometry=new THREE.BoxGeometry(w,h,d);return o}
+function makeRoom(){
+ box(26,.35,22,mats.floor,0,-.2,0);
+ box(26,9,.35,mats.wall,0,4.2,-10.8);
+ box(.35,9,22,mats.wall,-13,4.2,0);
+ box(7,5,.15,mat('#a9ddff'),-4,5.1,-10.58);
+ for(let i=0;i<4;i++)box(.12,5,.12,mat('#fff8e8'),-7.4+i*2.25,5.1,-10.45);
+ // rug
+ let rug=box(9,.08,6,mat('#83c9d8'),0,.02,1);rug.rotation.y=-.08;
+ // wall art
+ box(2.3,1.6,.12,mat('#ffcf79'),-9,5,-10.48);box(1.95,1.25,.06,mat('#72b8ed'),-9,5,-10.38);
+ ball(.35,mat('#ffdf82'),-9,5,-10.25);
+ // plant
+ let pot=mesh(geo.cyl,mat('#f28c75'),-10,.45,-6,.65,.8,.65);ball(.6,mat('#56b98a'),-10,1.35,-6);for(let i=0;i<5;i++){let leaf=ball(.28,mat('#79d69b'),-10+Math.cos(i*1.25)*.55,1.5+Math.sin(i)*.2,-6+Math.sin(i*1.25)*.55);leaf.scale.set(.4,1,.35);leaf.rotation.z=(i-2)*.3}
+ // lamp
+ let stand=mesh(geo.cyl,mat('#e4b35c'),-8,1.4,5,.12,2.8,.12);ball(.65,mat('#ffe29b'),-8,3,5);
+}
+makeRoom();
+
+// printer platform and detailed cartoon Bambu-style printer
+const printer=new THREE.Group();scene.add(printer);printer.position.set(0,0,-1.5);
+box(5.4,.42,4.1,mats.dark,0,.45,0,printer);box(5.15,.2,3.85,mats.white,0,.77,0,printer);
+box(4.9,.18,3.5,mat('#dceaf5'),0,.94,0,printer);
+for(const x of [-2.35,2.35])for(const z of [-1.7,1.7]){let foot=mesh(geo.cyl,mats.dark,x,.2,z,.25,.4,.25,printer)}
+// frame uprights
+for(const x of [-2.25,2.25]){box(.22,4.4,.24,mats.dark,x,3.05,-1.65,printer);box(.3,.2,.35,mats.blue,x,5.2,-1.65,printer)}
+box(4.7,.28,.28,mats.dark,0,5.15,-1.65,printer);
+box(4.5,.16,.18,mats.blue,0,5.38,-1.65,printer);
+// bed rails
+box(4.2,.12,.18,mat('#647b91'),0,1.25,0,printer);
+const bed= new THREE.Group();printer.add(bed);bed.position.set(0,1.42,.05);box(3.8,.16,2.8,mat('#455d76'),0,0,0,bed);box(3.55,.08,2.55,mat('#e9f4fb'),0,.12,0,bed);
+for(let x=-1.55;x<=1.56;x+=.5)for(let z=-1.05;z<=1.06;z+=.5)ball(.025,mat('#a7c7df'),x,.17,z,bed);
+const head=new THREE.Group();printer.add(head);head.position.set(0,4.65,-1.65);box(.95,.62,.65,mats.blue,0,0,0,head);box(.48,.3,.7,mats.white,0,-.35,.08,head);ball(.18,mat('#293b52'),0,-.55,.12,head);box(.08,.28,.08,mat('#ffad4e'),0,-.72,.12,head);
+for(let x of [-.33,.33])ball(.11,mat('#dff4ff'),x,.08,.34,head);
+// Flexible-looking filament strand from the hot nozzle to the active print layer.
+const extrusionMaterial=mat('#57b9ee',.32,.05);
+const extrusion=mesh(new THREE.CylinderGeometry(.025,.025,1,10),extrusionMaterial,0,0,0,1,1,1,printer);
+extrusion.visible=false;
+const nozzleGlow=ball(.12,mat('#ffb34d',.35),0,0,0,printer);nozzleGlow.visible=false;
+function setBetween(obj,a,b){
+ const dir=new THREE.Vector3().subVectors(b,a),len=dir.length();
+ obj.position.copy(a).add(b).multiplyScalar(.5);
+ obj.scale.y=Math.max(.001,len);
+ obj.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir.normalize());
+}
+let layerTrace=null, layerSegmentCount=0;
+function buildLayerTrace(){
+ if(layerTrace){printer.remove(layerTrace);layerTrace.geometry.dispose();layerTrace.material.dispose();layerTrace=null}
+ const positions=[];
+ const layers=120, segmentsPerLayer=34;
+ // Each layer has a perimeter plus short infill strokes, printed one segment at a time.
+ for(let layer=0;layer<layers;layer++){
+   const y=1.53+(layer/layers)*2.0;
+   const halfX=.72,halfZ=.58;
+   const corners=[[-halfX,-halfZ],[halfX,-halfZ],[halfX,halfZ],[-halfX,halfZ],[-halfX,-halfZ]];
+   for(let i=0;i<4;i++){
+     const a=corners[i],b=corners[i+1];
+     positions.push(a[0],y,a[1],b[0],y,b[1]);
+   }
+   for(let j=0;j<15;j++){
+     const z=-halfZ+(j/14)*(halfZ*2);
+     const leftToRight=j%2===0;
+     positions.push(leftToRight?-halfX:halfX,y,z,leftToRight?halfX:-halfX,y,z);
+   }
+ }
+ const geometry=new THREE.BufferGeometry();
+ geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
+ geometry.setDrawRange(0,0);
+ const material=new THREE.LineBasicMaterial({color:new THREE.Color(color),transparent:true,opacity:.98});
+ layerTrace=new THREE.LineSegments(geometry,material);layerTrace.frustumCulled=false;printer.add(layerTrace);
+ layerSegmentCount=positions.length/6;
+}
+function updateExtrusion(progress){
+ if(!printing){extrusion.visible=false;nozzleGlow.visible=false;return}
+ extrusion.visible=true;nozzleGlow.visible=true;
+ const layer=Math.min(119,Math.floor(progress*120));
+ const within=(progress*120)-layer;
+ const sweep=(within*2)%1;
+ const x=-.72+sweep*1.44;
+ const z=-.58+((Math.floor(within*2)%2===0)?0.12:-0.12);
+ const topY=1.53+(layer/120)*2.0;
+ const nozzleA=new THREE.Vector3(head.position.x,head.position.y-.76,-1.65+.12);
+ const nozzleB=new THREE.Vector3(x,topY,z);
+ setBetween(extrusion,nozzleA,nozzleB);
+ extrusion.material.color.set(color);
+ nozzleGlow.position.copy(nozzleA);
+ nozzleGlow.material.color.set('#ffb34d');
+ if(layerTrace){
+   const segmentsDone=Math.min(layerSegmentCount,Math.floor(progress*layerSegmentCount));
+   layerTrace.geometry.setDrawRange(0,segmentsDone*2);
+   layerTrace.material.color.set(color);
+ }
+}
+const spool=new THREE.Group();printer.add(spool);spool.position.set(2.9,3.3,-1.7);mesh(geo.cyl,mat('#3c5068'),0,0,0,.85,.35,.85,spool).rotation.z=Math.PI/2;mesh(geo.torus,mat('#58b9ed'),0,0,0,.76,.13,.76,spool).rotation.y=Math.PI/2;mesh(geo.cyl,mat('#7bcaf3'),0,0,0,.58,.25,.58,spool).rotation.z=Math.PI/2;
+for(let i=0;i<18;i++){let a=i*Math.PI/9;let bead=ball(.035,mat('#d9f5ff'),Math.cos(a)*.7,Math.sin(a)*.7,0,spool)}
+// printer control display
+box(.9,.65,.12,mat('#253a53'),-2.65,2.5,-.15,printer);box(.72,.44,.05,mat('#72d9c0'),-2.65,2.5,-.07,printer);
+
+// shelf display
+const shelf=new THREE.Group();scene.add(shelf);shelf.position.set(7,0,-6.5);
+box(4.2,.25,1.2,mats.wood,0,.4,0,shelf);box(4.2,.2,1.2,mats.wood,0,2.1,0,shelf);box(4.2,.2,1.2,mats.wood,0,3.8,0,shelf);
+for(let x of [-1.9,1.9])box(.18,4.1,1.2,mats.wood,x,2,0,shelf);
+for(let i=0;i<3;i++)box(3.8,.09,1.1,mat('#e5b889'),0,.58+i*1.7,0,shelf);
+
+
+// Playable workshop owner: a friendly low-poly cartoon character
+const avatar = new THREE.Group();
+scene.add(avatar);
+avatar.position.set(-5.1,0,3.3);
+const skin=mat('#ffd1a6'), shirt=mat('#ff875f'), pants=mat('#405c91'), shoe=mat('#fff3dc'), hair=mat('#5b3b2b');
+const body=new THREE.Group();avatar.add(body);
+const torso=mesh(geo.sphere,shirt,0,1.12,0,.48,.62,.32,body);
+const headGroup=new THREE.Group();body.add(headGroup);headGroup.position.set(0,2.05,0);
+mesh(geo.sphere,skin,0,0,0,.43,.48,.4,headGroup);
+mesh(geo.sphere,hair,0,.28,-.06,.44,.25,.4,headGroup);
+for(const x of [-.16,.16]){
+  mesh(geo.sphere,mat('#fff'),x,.03,.345,.09,.105,.055,headGroup);
+  mesh(geo.sphere,mat('#34465d'),x,.025,.395,.045,.065,.025,headGroup);
+}
+mesh(geo.sphere,mat('#ff9b8d'),0,-.16,.36,.12,.045,.035,headGroup);
+const arms=[];
+for(const x of [-.57,.57]){
+  const arm=new THREE.Group();body.add(arm);arm.position.set(x,1.48,0);
+  mesh(geo.cylinder,shirt,0,-.27,0,.15,.42,.15,arm);
+  mesh(geo.sphere,skin,0,-.52,.02,.16,.16,.16,arm);
+  arms.push(arm);
+}
+for(const x of [-.23,.23]){
+  const leg=new THREE.Group();body.add(leg);leg.position.set(x,.57,0);
+  mesh(geo.cylinder,pants,0,-.19,0,.19,.48,.19,leg);
+  mesh(geo.sphere,shoe,0,-.43,.1,.23,.13,.32,leg);
+}
+const cap=new THREE.Group();headGroup.add(cap);
+mesh(geo.sphere,mat('#4d9ee8'),0,.37,0,.46,.16,.42,cap);
+mesh(geo.cylinder,mat('#4d9ee8'),0,.31,.12,.45,.07,.45,cap);
+const badge=mesh(geo.sphere,mat('#ffd166'),.29,1.35,.25,.12,.12,.06,body);
+let moveState={forward:false,back:false,left:false,right:false};
+let avatarMoving=false, avatarStep=0;
+function setMove(k,on){moveState[k]=on}
+document.querySelectorAll('[data-move]').forEach(btn=>{
+  const k=btn.dataset.move;
+  btn.addEventListener('pointerdown',e=>{e.preventDefault();setMove(k,true);btn.setPointerCapture(e.pointerId)});
+  const stop=()=>setMove(k,false);
+  btn.addEventListener('pointerup',stop);btn.addEventListener('pointercancel',stop);btn.addEventListener('lostpointercapture',stop);
+});
+const keyMap={KeyW:'forward',ArrowUp:'forward',KeyS:'back',ArrowDown:'back',KeyA:'left',ArrowLeft:'left',KeyD:'right',ArrowRight:'right'};
+addEventListener('keydown',e=>{if(keyMap[e.code]){setMove(keyMap[e.code],true);e.preventDefault()}});
+addEventListener('keyup',e=>{if(keyMap[e.code])setMove(keyMap[e.code],false)});
+function updateAvatar(dt){
+  let dx=(moveState.right?1:0)-(moveState.left?1:0);
+  let dz=(moveState.back?1:0)-(moveState.forward?1:0);
+  avatarMoving=Math.abs(dx)+Math.abs(dz)>0;
+  if(avatarMoving){
+    const len=Math.hypot(dx,dz)||1;dx/=len;dz/=len;
+    const oldX=avatar.position.x, oldZ=avatar.position.z;
+    const nextX=THREE.MathUtils.clamp(oldX+dx*dt*3.2,-10.8,10.8);
+    const nextZ=THREE.MathUtils.clamp(oldZ+dz*dt*3.2,-8.5,8.5);
+    // Solid collision zone around the Bambu Lab A1: the character stops at its frame/base.
+    const printerMinX=-3.05, printerMaxX=3.05, printerMinZ=-4.0, printerMaxZ=1.35;
+    const radius=.48;
+    const hitsPrinter=(x,z)=>x+radius>printerMinX && x-radius<printerMaxX && z+radius>printerMinZ && z-radius<printerMaxZ;
+    if(!hitsPrinter(nextX,oldZ)) avatar.position.x=nextX;
+    if(!hitsPrinter(avatar.position.x,nextZ)) avatar.position.z=nextZ;
+    avatar.rotation.y=Math.atan2(dx,dz);
+    avatarStep+=dt*10;
+    body.position.y=Math.abs(Math.sin(avatarStep))*0.12;
+    arms[0].rotation.x=Math.sin(avatarStep)*.55;
+    arms[1].rotation.x=-Math.sin(avatarStep)*.55;
+  }else{
+    body.position.y=Math.sin(elapsed*2.2)*.035;
+    arms[0].rotation.x=Math.sin(elapsed*1.4)*.06;
+    arms[1].rotation.x=-Math.sin(elapsed*1.4)*.06;
+  }
+  headGroup.rotation.z=Math.sin(elapsed*1.5)*.035;
+}
+
+// Models, all composed from smooth primitives
+const modelNames=['Кораблик Benchy','Дракончик','Ваза','Шлем','Кубик','Подставка для телефона','Робот','Котик','Сюрприз-модель'];
+const modelEmoji=['⛵','🐉','🏺','🪖','🧊','📱','🤖','🐱','✨'];
+let chosen=0, filament='PLA', color='#57b9ee', selectedModel=null, printed=null, sliced=false, printing=false, printStart=0, printDuration=18000, printProgress=0, shelfItems=[], particles=[];
+const printClipPlane=new THREE.Plane(new THREE.Vector3(0,-1,0),0);
+function prepareLayerMaterials(root){
+ root.traverse(obj=>{
+   if(obj.isMesh){
+     const original=obj.material;
+     const cloned=original.clone();
+     cloned.clippingPlanes=[printClipPlane];
+     cloned.clipShadows=true;
+     obj.material=cloned;
+   }
+ });
+}
+
+const palette=[['Голубой','#57b9ee'],['Розовый','#ff83a5'],['Жёлтый','#ffd45e'],['Зелёный','#65ce9c'],['Фиолетовый','#a78bfa'],['Белый','#f5f5ed'],['Чёрный','#303c52'],['Оранжевый','#ff9b54']];
+function createModel(index,scale=1){
+ const g=new THREE.Group(),m=mat(color,.42,.04),dark=mat('#34475d'),white=mat('#fff4df');
+ const B=(w,h,d,x,y,z,ma=m)=>box(w,h,d,ma,x,y,z,g),S=(r,x,y,z,ma=m)=>ball(r,ma,x,y,z,g);
+ if(index===0){B(1.7,.42,.8,0,.3,0);B(1.15,.55,.7,0,.72,-.05);B(.5,.45,.5,0,1.15,-.05,white);B(1.9,.12,.1,0,.12,.4,dark);S(.2,-.65,.95,0);S(.2,.65,.95,0)}
+ if(index===1){for(let i=0;i<5;i++){let s=S(.34-i*.025,-.75+i*.38,.45+i*.2,0);s.rotation.z=-.3}S(.48,1.05,1.35,0);S(.12,.88,1.55,.35,white);S(.12,1.2,1.55,.35,white);for(let i=0;i<3;i++){let h=S(.16,-.9+i*.5,1.55+i*.12,0);h.scale.set(.45,1.4,.5)}}
+ if(index===2){let vase=mesh(geo.cyl,m,0,.8,0,.55,1.35,.55,g);vase.scale.set(.65,1.2,.65);let neck=mesh(geo.cyl,m,0,1.9,0,.3,.45,.3,g);S(.35,0,.25,0)}
+ if(index===3){let dome=S(.75,0,1.05,0);dome.scale.set(1.1,.8,1);B(1.5,.2,.9,0,.55,.1);B(.65,.16,.16,0,.9,.73,dark)}
+ if(index===4){let c=box(1.35,1.35,1.35,m,0,.8,0,g);c.rotation.set(.2,.35,.1);S(.12,-.25,1.5,.6,white);S(.12,.25,1.5,.6,white)}
+ if(index===5){B(1.25,.18,.75,0,.18,0,dark);let back=B(1.2,1.1,.12,0,.78,-.28);back.rotation.x=-.18;B(.8,.05,.06,0,1.25,-.2,white)}
+ if(index===6){B(.9,.9,.55,0,1.05,0);S(.48,0,1.8,0,white);for(let x of [-.18,.18])S(.07,x,1.85,.4,dark);for(let x of [-.65,.65]){B(.22,.75,.22,x,.95,0);B(.25,.65,.25,x*.7,.22,0)}B(.3,.2,.25,0,.48,0,dark)}
+ if(index===7){S(.62,0,.8,0);let a=S(.25,-.38,1.35,0);a.scale.set(.55,1,.3);let b=S(.25,.38,1.35,0);b.scale.set(.55,1,.3);for(let x of [-.2,.2]){S(.07,x,.9,.52,white);S(.035,x,.9,.58,dark)}S(.12,0,.68,.58,mat('#ff9cae'))}
+ if(index===8){S(.55,0,.9,0);for(let i=0;i<5;i++){let q=S(.16,Math.cos(i*1.25)*.55,1.2+Math.sin(i*1.25)*.5,Math.sin(i*1.25)*.55,mat(palette[i][1]));q.scale.set(1,.65,1)}}
+ g.scale.setScalar(scale);g.userData.baseY=0;return g;
+}
+function clearSelection(){if(selectedModel){scene.remove(selectedModel);selectedModel=null}}
+function showModelPreview(){clearSelection();selectedModel=createModel(chosen,.95);selectedModel.position.set(-5,1.1,1);scene.add(selectedModel);toast('Выбрано: '+modelNames[chosen]);}
+function toast(t){let el=document.querySelector('#toast');el.textContent=t;el.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove('show'),2100)}
+function panel(title,body){let s=document.querySelector('#side');s.innerHTML=`<h2>${title}</h2>${body}<div style="margin-top:12px"><button class="secondary" id="closePanel">Закрыть</button></div>`;s.classList.add('show');document.querySelector('#closePanel').onclick=()=>s.classList.remove('show')}
+function showShop(){panel('🧵 Магазин пластика',`<p class="small">Все катушки бесплатные — выбирай материал и цвет!</p><h3>Материал</h3><div class="grid">${['PLA','PETG','Silk','Glow-in-the-dark'].map(v=>`<div class="item ${filament===v?'active':''}" data-fil="${v}">${v}<br><span class="small">${({PLA:'Универсальный',PETG:'Прочный',Silk:'Шёлковый блеск', 'Glow-in-the-dark':'Светится в темноте'})[v]}</span></div>`).join('')}</div><h3>Цвет</h3><div class="swatches">${palette.map(([n,c])=>`<div class="swatch" title="${n}" data-color="${c}" style="background:${c}"></div>`).join('')}</div><p class="small">Выбрано: <b>${filament}</b></p>`);document.querySelectorAll('[data-fil]').forEach(e=>e.onclick=()=>{filament=e.dataset.fil;document.querySelector('#spoolName').textContent=filament+' · '+(palette.find(p=>p[1]===color)?.[0]||'Цвет');showShop()});document.querySelectorAll('[data-color]').forEach(e=>e.onclick=()=>{color=e.dataset.color;document.querySelector('#spoolName').textContent=filament+' · '+(palette.find(p=>p[1]===color)?.[0]||'Цвет');if(selectedModel){scene.remove(selectedModel);showModelPreview()}showShop()})}
+function showModels(){panel('🧩 Выбери модель',`<div class="grid">${modelNames.map((n,i)=>`<div class="item ${chosen===i?'active':''}" data-model="${i}"><div style="font-size:27px">${modelEmoji[i]}</div>${n}</div>`).join('')}</div>`);document.querySelectorAll('[data-model]').forEach(e=>e.onclick=()=>{chosen=+e.dataset.model;showModels();showModelPreview()})}
+function showShelf(){panel('🏆 Коллекция фигурок',shelfItems.length?`<div class="grid">${shelfItems.map((x,i)=>`<div class="item"><div style="font-size:28px">${modelEmoji[x.model]}</div>${modelNames[x.model]}<br><span class="small">${x.filament}</span></div>`).join('')}</div>`:'<p>Полки пока пустые. Напечатай первую фигурку!</p>')}
+function focusPrinter(){controls.target.set(0,2.2,-1.5);camera.position.set(8,7,9)}
+function slice(){if(printing)return; sliced=true;let complexity=[1.1,1.8,1.2,1.4,.6,.9,1.3,1.1,2.1][chosen];let material=({PLA:1,PETG:1.2,Silk:1.1,'Glow-in-the-dark':1.25})[filament];let mins=Math.round((8+complexity*7)*material)*6;printDuration=mins*1000;document.querySelector('#bottom').classList.add('show');document.querySelector('#status').textContent='🤖 Bambu AI Slicer: модель нарезана!';document.querySelector('#bar').style.width='100%';document.querySelector('#detail').textContent=`Сложность: ${complexity>1.5?'Высокая':'Средняя'} · Материал: ${filament} · Расчётное время: ${mins} сек. (замедленная реалистичная печать) · Слои: ${Math.round(45+complexity*32)}`;toast('Слайсер подготовил модель!');focusPrinter()}
+function startPrint(){if(printing){toast('Печать уже идёт!');return}if(!sliced){toast('Сначала запусти Bambu AI Slicer');return}printing=true;printStart=performance.now();printProgress=0;bed.position.y=1.42;clearSelection();if(printed){scene.remove(printed);printed=null}printed=createModel(chosen,1);printed.position.set(0,1.65,0);printer.add(printed);prepareLayerMaterials(printed);printClipPlane.constant=1.67;printed.scale.setScalar(1);buildLayerTrace();extrusion.visible=true;document.querySelector('#bottom').classList.add('show');document.querySelector('#status').textContent='🖨️ Печатаем: '+modelNames[chosen];document.querySelector('#detail').textContent='Слой за слоем появляется твоя фигурка…';focusPrinter();toast('Печать началась!')}
+function collect(){if(!printed)return;let world=printer.localToWorld(printed.position.clone());printer.remove(printed);scene.add(printed);printed.position.copy(world);let target=new THREE.Vector3(7+(shelfItems.length%3)*.2,1.2+Math.floor(shelfItems.length/3)*1.7,-6.5);printed.userData.from=printed.position.clone();printed.userData.to=target;printed.userData.collectAt=performance.now();printed.userData.collecting=true;shelfItems.push({model:chosen,filament});printing=false;sliced=false;document.querySelector('#status').textContent='🎉 Фигурка готова!';document.querySelector('#detail').textContent='Она отправляется на полку. Можно печатать следующую!';document.querySelector('#bar').style.width='100%';showModal('Фигурка готова!',`Ты напечатал(а) «${modelNames[chosen]}» из материала ${filament}. Она добавлена в коллекцию!`);spool.rotation.x+=Math.PI*2}
+function showModal(t,txt){document.querySelector('#modalTitle').textContent=t;document.querySelector('#modalText').textContent=txt;document.querySelector('#modal').classList.add('show')}
+document.querySelector('#modalOk').onclick=()=>document.querySelector('#modal').classList.remove('show');
+document.querySelector('#shopBtn').onclick=showShop;document.querySelector('#modelsBtn').onclick=showModels;document.querySelector('#sliceBtn').onclick=slice;document.querySelector('#printBtn').onclick=startPrint;document.querySelector('#shelfBtn').onclick=showShelf;document.querySelector('#roomBtn').onclick=()=>{controls.target.set(0,2,0);camera.position.set(11,10,15);toast('Обзор всей мастерской')};
+document.querySelector('#startBtn').onclick=()=>{
+ const card=document.querySelector('#introCard'),emoji=card.querySelector('.emoji'),title=card.querySelector('h1'),desc=card.querySelector('p'),btn=document.querySelector('#startBtn');
+ btn.disabled=true;card.classList.add('opening');title.textContent='Открываем коробку…';desc.textContent='Снимаем упаковку и готовим мастерскую.';
+ setTimeout(()=>{emoji.textContent='🖨️';emoji.style.animation='none';emoji.style.opacity='1';emoji.style.transform='scale(1)';title.textContent='Bambu Lab A1 готов!';desc.textContent='Принтер установлен на столе. Твой помощник уже ждёт!';emoji.animate([{transform:'translateY(30px) scale(.6)',opacity:0},{transform:'translateY(0) scale(1)',opacity:1}],{duration:650,easing:'cubic-bezier(.2,.8,.2,1)'})},800);
+ setTimeout(()=>{document.querySelector('#intro').style.transition='opacity .7s';document.querySelector('#intro').style.opacity='0';setTimeout(()=>{document.querySelector('#intro').style.display='none';toast('Мастерская открыта!');showModels();showModelPreview();focusPrinter()},700)},2200);
+};
+function spawnParticles(pos,count=16){for(let i=0;i<count;i++){let p=ball(.045,mat(palette[Math.floor(Math.random()*palette.length)][1]),pos.x,pos.y,pos.z);p.userData.v=new THREE.Vector3((Math.random()-.5)*.12,Math.random()*.13,(Math.random()-.5)*.12);p.userData.life=1.0;particles.push(p)}}
+const clock=new THREE.Clock();let elapsed=0;
+function animate(){requestAnimationFrame(animate);let dt=Math.min(clock.getDelta(),.04);elapsed+=dt;controls.update();updateAvatar(dt);
+ // cozy floating movement and machine idle animation
+ head.position.x=printing?Math.sin(elapsed*3)*1.65:Math.sin(elapsed*.65)*.04;
+ head.position.y=4.65+(printing?Math.sin(elapsed*8)*.035:Math.sin(elapsed*1.2)*.025);
+ bed.position.z=printing?Math.sin(elapsed*2.3)*.35:Math.sin(elapsed*.6)*.025;
+ spool.rotation.x+=dt*(printing?1.4:.08);
+ if(selectedModel){selectedModel.rotation.y+=dt*.5;selectedModel.position.y=1.1+Math.sin(elapsed*2)*.08}
+ if(printed&&printing){let p=Math.min(1,(performance.now()-printStart)/printDuration);printProgress=p;
+ // The clipping plane rises through the model, revealing successive thin layers.
+ const totalHeight=2.0;
+ const layerFloat=p*120;
+ const layer=Math.min(120,Math.floor(layerFloat)+1);
+ const layerProgress=layerFloat-Math.floor(layerFloat);
+ printClipPlane.constant=1.67+p*totalHeight;
+ // The nozzle draws a small raster path across the current layer instead of revealing a whole layer at once.
+ const sweep=(layerProgress*2)%1;
+ head.position.x=-.72+sweep*1.44;
+ head.position.y=4.65-(p*1.75);
+ head.position.z=-1.65+.58+((Math.floor(layerProgress*2)%2===0)?0.12:-0.12);
+ bed.position.z=Math.sin(layerFloat*.22)*.055;
+ updateExtrusion(p);
+ document.querySelector('#bar').style.width=(p*100)+'%';
+ document.querySelector('#status').textContent=`🖨️ Печать: слой ${layer} · ${Math.floor(layerProgress*100)}%`;
+ document.querySelector('#detail').textContent=`Сопло укладывает пластик тонкой дорожкой · ${filament} · ${layer} / 120 слоёв`;
+ if(Math.random()<.12)spawnParticles(new THREE.Vector3(head.position.x,2.2+p*1.7,-1.2),1);
+ if(p>=1){printClipPlane.constant=4.2;updateExtrusion(1);printed.traverse(o=>{if(o.isMesh&&o.material.clippingPlanes)o.material.clippingPlanes=[]});if(layerTrace){printer.remove(layerTrace);layerTrace.geometry.dispose();layerTrace.material.dispose();layerTrace=null}extrusion.visible=false;nozzleGlow.visible=false;collect()}}
+ if(printed?.userData.collecting){let u=Math.min(1,(performance.now()-printed.userData.collectAt)/1100);let from=printed.userData.from,to=printed.userData.to;printed.position.lerpVectors(from,to,u);printed.position.y+=Math.sin(u*Math.PI)*1.8;if(u>=1){printed.userData.collecting=false;printed.position.copy(to);printed.scale.setScalar(.48);printed.rotation.y=Math.random()*2}}
+ for(let i=particles.length-1;i>=0;i--){let p=particles[i];p.position.add(p.userData.v);p.userData.v.y-=.003;p.userData.life-=dt*1.4;p.scale.setScalar(Math.max(.001,p.userData.life));if(p.userData.life<=0){scene.remove(p);particles.splice(i,1)}}
+ renderer.render(scene,camera)}
+animate();
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+</script>
+</body>
+</html>
